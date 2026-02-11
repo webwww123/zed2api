@@ -1,0 +1,90 @@
+name: Release zed2api
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: zed2api-linux-amd64
+            asset_file: zed2api-linux-amd64.tar.gz
+          - os: windows-latest
+            artifact_name: zed2api-windows-amd64
+            asset_file: zed2api-windows-amd64.zip
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "webui/package-lock.json"
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.15.1"
+
+      - name: Install WebUI dependencies
+        run: npm ci
+        working-directory: webui
+
+      - name: Build binary
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Package Linux artifact
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp zig-out/bin/zed2api dist/zed2api
+          tar -C dist -czf "dist/${{ matrix.asset_file }}" zed2api
+          rm -f dist/zed2api
+
+      - name: Package Windows artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item zig-out/bin/zed2api.exe dist/zed2api.exe
+          Compress-Archive -Path dist/zed2api.exe -DestinationPath "dist/${{ matrix.asset_file }}" -Force
+          Remove-Item dist/zed2api.exe
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.asset_file }}
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/zed2api-linux-amd64/zed2api-linux-amd64.tar.gz
+            release-assets/zed2api-windows-amd64/zed2api-windows-amd64.zip
