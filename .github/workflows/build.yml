@@ -1,0 +1,63 @@
+name: Build zed2api
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - ".github/workflows/build.yml"
+      - "build.zig"
+      - "build.zig.zon"
+      - "src/**"
+      - "webui/**"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "webui/package-lock.json"
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.15.1"
+
+      - name: Install WebUI dependencies
+        run: npm ci
+        working-directory: webui
+
+      - name: Build binary
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zed2api-linux-amd64
+          path: zig-out/bin/zed2api
+          if-no-files-found: error
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zed2api-windows-amd64
+          path: zig-out/bin/zed2api.exe
+          if-no-files-found: error
