@@ -50,6 +50,8 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
+          retention-days: 3
+        with:
           name: zed2api-linux-amd64
           path: zig-out/bin/zed2api
           if-no-files-found: error
@@ -57,6 +59,8 @@ jobs:
       - name: Upload Windows artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
+        with:
+          retention-days: 3
         with:
           name: zed2api-windows-amd64
           path: zig-out/bin/zed2api.exe
